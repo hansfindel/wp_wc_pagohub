@@ -1,7 +1,7 @@
 <?php
 
-if ( ! defined( 'ABSPATH' ) ) {
-	exit();
+if (!defined('ABSPATH')) {
+  exit();
 } // Exit if accessed directly
 
 /*
@@ -18,25 +18,23 @@ if (!function_exists('write_log')) {
   {
     if (true === WP_DEBUG) {
       if (is_array($log) || is_object($log)) {
-        error_log(print_r($log, true));
+        error_log("PagoHub - ". print_r($log, true));
       } else {
-        error_log($log);
+        error_log("PagoHub - ". $log);
       }
     }
   }
 }
 
-function warning_incompatible(){
+function warning_incompatible() {
   if (!class_exists(WC_PagoHub::class)) {
     return;
   }
-  if (!WC_PagoHub::is_valid_for_use()) {
-    ?>
+  if (!WC_PagoHub::is_valid_for_use()) { ?>
     <div data-dismissible="pagohub_warning" class="updated notice notice-error is-dismissible">
-        <p><?php _e('Woocommerce debe estar configurado en pesos chilenos (CLP) para habilitar Pagohub', 'pagohub_wc_plugin'); ?></p>
+      <p><?php _e('Woocommerce debe estar configurado en pesos chilenos (CLP) para habilitar Pagohub', 'pagohub_wc_plugin'); ?></p>
     </div>
-    <?php
-  }
+  <?php }
 }
 
 add_filter('woocommerce_payment_gateways', 'pagohub_add_gateway_class');
@@ -61,7 +59,7 @@ function pagohub_init_gateway_class()
     {
 
       $this->id = 'pagohub';
-      $this->icon = plugin_dir_url(__FILE__).'images/logo_PagoHub.webp';
+      $this->icon = plugin_dir_url(__FILE__) . 'images/logo_PagoHub.webp';
       $this->has_fields = true;
       $this->title = __('PagoHub', 'pagohub_wc_plugin');
       $this->method_title = __('PagoHub', 'pagohub_wc_plugin');
@@ -83,16 +81,16 @@ function pagohub_init_gateway_class()
         add_action('woocommerce_update_options_payment_gateways_' . $this->id, array($this, 'process_admin_options'));
       }
 
-      if ( ! $this->is_valid_for_use() ) {
+      if (!$this->is_valid_for_use()) {
         add_action('admin_notices', 'warning_incompatible');
-				$this->enabled = false;
-			}
+        $this->enabled = false;
+      }
 
-      add_action('woocommerce_api_{webhook name}', array($this, 'webhook'));
+      // add_action('woocommerce_api_{webhook name}', array($this, 'webhook'));
+      add_action('woocommerce_api_return_'.$this->id, array($this, 'callback_return'));
     }
 
-    public function init_form_fields()
-    {
+    public function init_form_fields() {
 
       $this->form_fields = array(
         'enabled' => array(
@@ -132,98 +130,118 @@ function pagohub_init_gateway_class()
     }
 
 
-    public function payment_fields()
-    {
+    public function payment_fields() {
       // Como PagoHub se encarga de realizar todo el pago desde su plataforma, no es necesario colocar los campos de pago (form)
     }
 
-    public function payment_scripts()
-    {
+    public function payment_scripts() {
       // Como PagoHub se encarga de realizar todo el pago desde su plataforma, no es necesario colocar los campos de pago (form)	
     }
 
-    public function validate_fields()
-    {
+    public function validate_fields() {
       // Como PagoHub se encarga de realizar todo el pago desde su plataforma, no es necesario colocar los campos de pago (form)	
     }
 
-    public function process_payment($order_id)
-    {
+    public function process_payment($order_id) {
+      write_log("Inicia proceso de pago");
+
       $order = new WC_Order($order_id);
 
-      return [
-				'result'   => 'success',
-				'redirect' => $order->get_checkout_payment_url( true )
-			];
+      $returnUrl = add_query_arg('wc-api', "return_$this->id&order_id=$order->id", home_url('/'));
 
       $orderData = array(
         'amount' => $order->get_total(),
         'external_transaction_id' => $order->get_order_number(),
         'external_account_id' => $order->get_user_id(),
-        'description' => 'Descripción de la orden',
-        'return_url' => $this->get_return_url($order),
+        'description' => 'Orden de prueba',
+        'return_url' => $returnUrl,
       );
 
       $hash = hash('sha256', implode($orderData), false);
       $signature = base64_encode($hash);
 
-      $args = array(
-        'method' => 'POST',
-        'timeout' => 45,
-        'redirection' => 5,
-        'httpversion' => '1.0',
-        'blocking' => true,
-        'headers' => array(
-          "content-type" => "application/json",
-          "api_version" => "v1",
-          "merchant_id" => " $this->merchant_id",
-          "ALP_SIGNATURE" => "ALP:$signature",
-          "Authorization" => "Basic dGVzdDp0ZXN0"
-        ),
-        'body' => json_encode($orderData)
+      $body = $orderData;
+      $response = $this->httpRequest(
+        static::PAGOHUB_API_URL,
+        'POST',
+        $body,
+        $signature
       );
 
-      $response = wp_remote_post(static::PAGOHUB_API_URL, $args);
+      write_log("RESPONSE");
+      write_log($response);
 
       if (!is_wp_error($response)) {
-        write_log($args);
-        write_log($response['body']);
-        $body = json_decode($response['body'], true);
+        if ($response['status'] == 201) {
 
-        if ($body['status'] == 201) {
-
-          $paymentGatewayUrl = $body['data']['url'];
+          $paymentGatewayUrl = $response['data']['url'];
+          $pagoHubIdentifier = $response['data']['identifier'];
+          $order->update_meta_data('pago_hub_identifier', $pagoHubIdentifier);
+          $order->update_status('on-hold', __('Pago en proceso', 'pagohub_wc_plugin'));
 
           return array(
             'result' => 'success',
             'redirect' => $paymentGatewayUrl
           );
         } else {
-          wc_add_notice('Please try again.', 'error');
+          wc_add_notice('Ocurrió un error, por favor intente de nuevo más tarde.', 'error');
           return;
         }
       } else {
-        wc_add_notice('Connection error.', 'error');
+        wc_add_notice('Ops! tenemos un problema de conexión, por favor intente de nuevo más tarde', 'error');
         return;
       }
     }
 
-    public static function is_valid_for_use()
-    {
-        return in_array(get_woocommerce_currency(), ['CLP']);
+    public static function is_valid_for_use() {
+      return in_array(get_woocommerce_currency(), ['CLP']);
     }
 
-    public function webhook()
-    {
-      global $woocommerce;
-      $order = new WC_Order($_GET['id']);
+    public function callback_return(){
+      write_log("Retorno de pago");
+      $orderId = $_GET['order_id'];
 
-      $order->payment_complete();
-      $order->add_order_note('Hey, your order is paid! Thank you!', true);
-      wc_reduce_stock_levels($order->id);
-      $woocommerce->cart->empty_cart();
+      $order = wc_get_order($orderId);
+      $identifier = $order->get_meta('pago_hub_identifier');
+      write_log($identifier);
 
-      update_option('webhook_debug', $_GET);
+      
+      $returnUrl = $this->get_return_url($order);
+      wp_redirect($returnUrl);
+    }
+
+    public function webhook() {
+      // TODO: se puede implementar el webhook para recibir las notificaciones de PagoHub
+    }
+
+    private function httpRequest($url, $method, $params = [], $signature = null) {
+        $curl = curl_init();
+
+        write_log("PARAMS");
+        write_log($params);
+
+        curl_setopt_array($curl, [
+          CURLOPT_URL => $url,
+          CURLOPT_RETURNTRANSFER => true,
+          CURLOPT_ENCODING => "",
+          CURLOPT_MAXREDIRS => 10,
+          CURLOPT_TIMEOUT => 30,
+          CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+          CURLOPT_CUSTOMREQUEST => $method,
+          CURLOPT_POSTFIELDS => json_encode($params),
+          CURLOPT_HTTPHEADER => [
+            "ALP_SIGNATURE: ALP:$signature",
+            "Authorization: Basic dGVzdDp0ZXN0",
+            "Content-Type: application/json",
+            "api_version: v1",
+            "merchant_id: $this->merchant_id"
+          ],
+        ]);
+
+        $response = curl_exec($curl);
+        $err = curl_error($curl);
+
+        return json_decode($response, true);
     }
   }
 }
