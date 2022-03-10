@@ -1,4 +1,9 @@
 <?php
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit();
+} // Exit if accessed directly
+
 /*
  * Plugin Name: PagoHub
  * Plugin URI: https://www.pagohub.cl/
@@ -7,8 +12,6 @@
  * Author URI: http://jorgehsy.com
  * Version: 0.0.1
  */
-
-const PAGOHUB_API_URL = "https://portal.alpayments.com/payments";
 
 if (!function_exists('write_log')) {
   function write_log($log)
@@ -23,6 +26,19 @@ if (!function_exists('write_log')) {
   }
 }
 
+function warning_incompatible(){
+  if (!class_exists(WC_PagoHub::class)) {
+    return;
+  }
+  if (!WC_PagoHub::is_valid_for_use()) {
+    ?>
+    <div data-dismissible="pagohub_warning" class="updated notice notice-error is-dismissible">
+        <p><?php _e('Woocommerce debe estar configurado en pesos chilenos (CLP) para habilitar Pagohub', 'pagohub_wc_plugin'); ?></p>
+    </div>
+    <?php
+  }
+}
+
 add_filter('woocommerce_payment_gateways', 'pagohub_add_gateway_class');
 function pagohub_add_gateway_class($gateways)
 {
@@ -31,21 +47,25 @@ function pagohub_add_gateway_class($gateways)
 }
 
 add_action('plugins_loaded', 'pagohub_init_gateway_class');
+
 function pagohub_init_gateway_class()
 {
 
   class WC_PagoHub extends WC_Payment_Gateway
   {
 
+    const PAGOHUB_API_URL = "https://portal.alpayments.com/payments";
+    const TEST_MERCHANT_ID = "integration";
+
     public function __construct()
     {
 
       $this->id = 'pagohub';
-      $this->icon = '';
+      $this->icon = plugin_dir_url(__FILE__).'images/logo_PagoHub.webp';
       $this->has_fields = true;
-      $this->title = __('PagoHub', 'text-domain');
-      $this->method_title = __('PagoHub', 'text-domain');
-      $this->method_description = __('PagoHub - Portal de pagos', 'text-domain');
+      $this->title = __('PagoHub', 'pagohub_wc_plugin');
+      $this->method_title = __('PagoHub', 'pagohub_wc_plugin');
+      $this->method_description = __('PagoHub - Portal de pagos', 'pagohub_wc_plugin');
       $this->supports = array(
         'products'
       );
@@ -57,13 +77,16 @@ function pagohub_init_gateway_class()
       $this->description = $this->get_option('description');
       $this->enabled = $this->get_option('enabled');
       $this->test_mode = 'yes' === $this->get_option('test_mode');
-      $this->merchant_id = $this->test_mode ? $this->get_option('test_merchant_id') : $this->get_option('merchant_id');
+      $this->merchant_id = $this->test_mode ? static::TEST_MERCHANT_ID : $this->get_option('merchant_id');
 
       if (is_admin()) {
         add_action('woocommerce_update_options_payment_gateways_' . $this->id, array($this, 'process_admin_options'));
       }
 
-      // add_action( 'wp_enqueue_scripts', array( $this, 'pagohub_scripts' ) );
+      if ( ! $this->is_valid_for_use() ) {
+        add_action('admin_notices', 'warning_incompatible');
+				$this->enabled = false;
+			}
 
       add_action('woocommerce_api_{webhook name}', array($this, 'webhook'));
     }
@@ -73,40 +96,36 @@ function pagohub_init_gateway_class()
 
       $this->form_fields = array(
         'enabled' => array(
-          'title'       => __('Activar/Desactivar', 'text-domain'),
-          'label'       => __('Habilita PagoHub', 'text-domain'),
+          'title'       => __('Activar/Desactivar', 'pagohub_wc_plugin'),
+          'label'       => __('Habilita PagoHub', 'pagohub_wc_plugin'),
           'type'        => 'checkbox',
-          'description' => __('Al habilitar este medio de pago, podrás aceptar pagos a través del portal de pagos PagoHub.', 'text-domain'),
+          'description' => __('Al habilitar este medio de pago, podrás aceptar pagos a través del portal de pagos PagoHub.', 'pagohub_wc_plugin'),
           'default'     => 'no',
           'desc_tip'    => true
         ),
         'title' => array(
-          'title'       => __('Título', 'text-domain'),
+          'title'       => __('Título', 'pagohub_wc_plugin'),
           'type'        => 'text',
-          'description' => __('Este será el título que se mostrará a tus clientes en la página de pago.', 'text-domain'),
-          'default'     => __('PagoHub', 'text-domain'),
+          'description' => __('Este será el título que se mostrará a tus clientes en la página de pago.', 'pagohub_wc_plugin'),
+          'default'     => __('PagoHub', 'pagohub_wc_plugin'),
           'desc_tip'    => true,
         ),
         'description' => array(
-          'title'       => __('Description', 'text-domain'),
+          'title'       => __('Description', 'pagohub_wc_plugin'),
           'type'        => 'textarea',
-          'description' => __('Este será la descripción que se mostrará a tus clientes en la página de pago.', 'text-domain'),
-          'default'     => __('Paga vie PagoHub', 'text-domain'),
+          'description' => __('Este será la descripción que se mostrará a tus clientes en la página de pago.', 'pagohub_wc_plugin'),
+          'default'     => __('Pagar via PagoHub', 'pagohub_wc_plugin'),
         ),
         'test_mode' => array(
-          'title'       => __('Modo de pruebas', 'text-domain'),
-          'label'       => __('Activa el modo de pruebas', 'text-domain'),
+          'title'       => __('Modo de pruebas', 'pagohub_wc_plugin'),
+          'label'       => __('Activa el modo de pruebas', 'pagohub_wc_plugin'),
           'type'        => 'checkbox',
-          'description' => __('Recuerda ingresar el Merchant ID de pruebas enviado por PagoHub', 'text-domain'),
+          'description' => __('Recuerda ingresar el Merchant ID de pruebas enviado por PagoHub', 'pagohub_wc_plugin'),
           'default'     => 'yes',
           'desc_tip'    => true,
         ),
-        'test_merchant_id' => array(
-          'title'       => __('Merchant ID de Pruebas', 'text-domain'),
-          'type'        => 'password',
-        ),
         'merchant_id' => array(
-          'title'       => __('Merchant ID Oficial', 'text-domain'),
+          'title'       => __('Merchant ID Oficial', 'pagohub_wc_plugin'),
           'type'        => 'password'
         )
       );
@@ -131,6 +150,11 @@ function pagohub_init_gateway_class()
     public function process_payment($order_id)
     {
       $order = new WC_Order($order_id);
+
+      return [
+				'result'   => 'success',
+				'redirect' => $order->get_checkout_payment_url( true )
+			];
 
       $orderData = array(
         'amount' => $order->get_total(),
@@ -159,7 +183,7 @@ function pagohub_init_gateway_class()
         'body' => json_encode($orderData)
       );
 
-      $response = wp_remote_post(PAGOHUB_API_URL, $args);
+      $response = wp_remote_post(static::PAGOHUB_API_URL, $args);
 
       if (!is_wp_error($response)) {
         write_log($args);
@@ -182,6 +206,11 @@ function pagohub_init_gateway_class()
         wc_add_notice('Connection error.', 'error');
         return;
       }
+    }
+
+    public static function is_valid_for_use()
+    {
+        return in_array(get_woocommerce_currency(), ['CLP']);
     }
 
     public function webhook()
