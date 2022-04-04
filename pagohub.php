@@ -44,15 +44,14 @@ function pagohub_add_gateway_class($gateways)
   return $gateways;
 }
 
-add_action('plugins_loaded', 'pagohub_init_gateway_class');
+require_once plugin_dir_path( __FILE__ ) . "lib/PagoHubAPI.php";
 
+add_action('plugins_loaded', 'pagohub_init_gateway_class');
 function pagohub_init_gateway_class()
 {
 
   class WC_PagoHub extends WC_Payment_Gateway
   {
-
-    const PAGOHUB_API_URL = "https://portal.alpayments.com/payments";
     const TEST_MERCHANT_ID = "integration";
 
     public function __construct()
@@ -146,33 +145,13 @@ function pagohub_init_gateway_class()
       write_log("Inicia proceso de pago");
 
       $order = new WC_Order($order_id);
-
-      $returnUrl = add_query_arg('wc-api', "return_$this->id&order_id=$order->id", home_url('/'));
-
-      $orderData = array(
-        'amount' => $order->get_total(),
-        'external_transaction_id' => $order->get_order_number(),
-        'external_account_id' => $order->get_user_id(),
-        'description' => 'Orden de prueba',
-        'return_url' => $returnUrl,
-      );
-
-      $hash = hash('sha256', implode($orderData), false);
-      $signature = base64_encode($hash);
-
-      $body = $orderData;
-      $response = $this->httpRequest(
-        static::PAGOHUB_API_URL,
-        'POST',
-        $body,
-        $signature
-      );
-
-      write_log("RESPONSE");
-      write_log($response);
-
+      $api = new PahoHubAPI($this->merchant_id);
+      $response = $api->createOrderPayment($order);
+      
+      
       if (!is_wp_error($response)) {
-        if ($response['status'] == 201) {
+        if ($response['status'] === 201) {
+          write_log($response['data']['url']);
 
           $paymentGatewayUrl = $response['data']['url'];
           $pagoHubIdentifier = $response['data']['identifier'];
@@ -188,25 +167,32 @@ function pagohub_init_gateway_class()
           return;
         }
       } else {
+        write_log("Error al crear el pago". is_wp_error($response));
         wc_add_notice('Ops! tenemos un problema de conexión, por favor intente de nuevo más tarde', 'error');
         return;
       }
     }
 
-    public static function is_valid_for_use() {
-      return in_array(get_woocommerce_currency(), ['CLP']);
-    }
-
     public function callback_return(){
       write_log("Retorno de pago");
       $orderId = $_GET['order_id'];
-
       $order = wc_get_order($orderId);
-      $identifier = $order->get_meta('pago_hub_identifier');
-      write_log($identifier);
-
       
-      $returnUrl = $this->get_return_url($order);
+      $api = new PahoHubAPI($this->merchant_id);
+      $paymentSuccess = $api->isPaymentSuccess($order);
+
+      if ($paymentSuccess){
+        $order->add_order_note(__("Pagado con PagoHub", 'woocommerce'));
+        $order->payment_complete();
+        wc_add_notice('Pago recibido con éxito', 'success');
+        $returnUrl = $this->get_return_url($order);
+      } else {
+        $order->add_order_note(__("Rechazado por PagoHub", 'woocommerce'));
+        $order->update_status('failed');
+        wc_add_notice('No se pudo verificar el pago, por favor intente de nuevo.', 'error');
+        $returnUrl = $order->get_cancel_order_url();
+      }
+    
       wp_redirect($returnUrl);
     }
 
@@ -214,34 +200,9 @@ function pagohub_init_gateway_class()
       // TODO: se puede implementar el webhook para recibir las notificaciones de PagoHub
     }
 
-    private function httpRequest($url, $method, $params = [], $signature = null) {
-        $curl = curl_init();
-
-        write_log("PARAMS");
-        write_log($params);
-
-        curl_setopt_array($curl, [
-          CURLOPT_URL => $url,
-          CURLOPT_RETURNTRANSFER => true,
-          CURLOPT_ENCODING => "",
-          CURLOPT_MAXREDIRS => 10,
-          CURLOPT_TIMEOUT => 30,
-          CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-          CURLOPT_CUSTOMREQUEST => $method,
-          CURLOPT_POSTFIELDS => json_encode($params),
-          CURLOPT_HTTPHEADER => [
-            "ALP_SIGNATURE: ALP:$signature",
-            "Authorization: Basic dGVzdDp0ZXN0",
-            "Content-Type: application/json",
-            "api_version: v1",
-            "merchant_id: $this->merchant_id"
-          ],
-        ]);
-
-        $response = curl_exec($curl);
-        $err = curl_error($curl);
-
-        return json_decode($response, true);
+    public static function is_valid_for_use() {
+      return in_array(get_woocommerce_currency(), ['CLP']);
     }
+
   }
 }
