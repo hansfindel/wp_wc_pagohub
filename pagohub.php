@@ -180,20 +180,29 @@ function pagohub_init_gateway_class()
       
       $api = new PahoHubAPI($this->merchant_id);
       $paymentSuccess = $api->isPaymentSuccess($order);
+      $returnUrl = self::processOrder($order, $paymentSuccess);
+    
+      wp_redirect($returnUrl);
+    }
 
+    public function processOrder(WC_Order $order, bool $paymentSuccess = false) : string{
       if ($paymentSuccess){
+
         $order->add_order_note(__("Pagado con PagoHub", 'woocommerce'));
         $order->payment_complete();
         wc_add_notice('Pago recibido con éxito', 'success');
         $returnUrl = $this->get_return_url($order);
+
       } else {
+
         $order->add_order_note(__("Rechazado por PagoHub", 'woocommerce'));
         $order->update_status('failed');
         wc_add_notice('No se pudo verificar el pago, por favor intente de nuevo.', 'error');
         $returnUrl = $order->get_cancel_order_url();
+
       }
-    
-      wp_redirect($returnUrl);
+      
+      return $returnUrl;
     }
 
     public function webhook() {
