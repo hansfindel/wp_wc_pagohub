@@ -13,13 +13,16 @@ class PahoHubAPI {
     const PAGOHUB_API_BASE_URL = "https://portal.alpayments.com/payments";
     const API_AUTH = 'Basic dGVzdDp0ZXN0';
     const SUCCESS_CODE = 1000;
-
+    
+    private $merchantId;
     /**
      * @merchantId string
      * return PagoHubAPI::class
      */
     function __construct(string $merchantId)
     {
+        $this->merchantId = $merchantId;
+
         $this->headers = array(
           'Authorization' => self::API_AUTH,
           'Content-Type' => 'application/json',
@@ -35,12 +38,12 @@ class PahoHubAPI {
      * @order WC_Order 
      * return array
      */
-    public function   createOrderPayment(WC_Order $order) : array{
+    public function createOrderPayment(WC_Order $order) : array{
       try {
         // http://dev.wordpress.cl/?wc-api=return_pagohub&order_id=27
         $returnUrl = add_query_arg('wc-api', "return_pagohub&order_id=".$order->get_id(), home_url('/'));
         $message = $order->get_total().":".$order->get_order_number();
-        $signature = $this->signMessage($message);
+        $signature = $this->signMessage($message, $this->merchantId);
         $body = array(
           'amount' => $order->get_total(),
           'external_transaction_id' => $order->get_order_number(),
@@ -78,7 +81,7 @@ class PahoHubAPI {
     public function getOrderPayment(WC_Order $order) : array{
       $identifier = $order->get_meta('pago_hub_identifier');
       $message = $order->get_total().":".$order->get_order_number();
-      $signature = $this->signMessage($message);
+      $signature = $this->signMessage($message, $this->merchantId);
 
       $this->headers['ALP_SIGNATURE'] = $signature;
 
@@ -167,8 +170,8 @@ class PahoHubAPI {
      * @message string
      * return string
      */
-    private function signMessage(string $message) : string{
-      $hash = hash('sha256', $message, false);
+    private function signMessage(string $message, string $secret) : string{
+      $hash = hash_hmac('sha256', $message, $secret, true);
       $signature = base64_encode($hash);
       
       return "ALP:$signature";
