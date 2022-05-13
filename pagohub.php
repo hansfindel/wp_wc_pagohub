@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) {
  * Description: Plugin de WooCoommerce para PagoHub
  * Author: Jorge Simoes 
  * Author URI: http://jorgehsy.com
- * Version: 0.0.1
+ * Version: 0.0.3
  */
 
 if (!function_exists('write_log')) {

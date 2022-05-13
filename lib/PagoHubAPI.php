@@ -81,9 +81,13 @@ class PahoHubAPI {
     public function getOrderPayment(WC_Order $order) : array{
       $identifier = $order->get_meta('pago_hub_identifier');
       $message = $order->get_total().":".$order->get_order_number();
-      $signature = $this->signMessage($message, $this->merchantId);
+      $currentDate = date('YmdHi');
+
+      //$signature = $this->signMessage($message, $this->merchantId);
+      $signature = $this->signMessage($currentDate, $this->merchantId);
 
       $this->headers['ALP_SIGNATURE'] = $signature;
+      $this->headers['ALP_DATE'] = $currentDate;
 
       $args = [
         'body'        => [],
@@ -171,8 +175,10 @@ class PahoHubAPI {
      * return string
      */
     private function signMessage(string $message, string $secret) : string{
+      write_log("Mensahe: ".$message);
       $hash = hash_hmac('sha256', $message, $secret, true);
       $signature = base64_encode($hash);
+      write_log("Signature: ".$signature);
       
       return "ALP:$signature";
     }
