@@ -1,4 +1,4 @@
-# Paghuhub - WooCommerce Plugin
+# PagoHub - WooCommerce Plugin
 Modulo encargado de gestionar y disponer la pasarela de pago de PagoHub a través de API REST.
 
 ## Instalación en Wordpress
