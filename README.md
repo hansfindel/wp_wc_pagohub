@@ -16,8 +16,8 @@ Aqui se encuentra toda la configuración necesario para disponibilizar el plugin
 Aquí se encuentra la lógica y seguridad de comunicación con la API de pagohub, se especifica las funciones necesarios para la creación de orden y verificación de pago.
 Las funciones disponibles son:
 - _createOrderPayment_: crea una orden a través de la API de pagohub y retorna la respuesta. (url de pago)
-- _getOrderPayment_: obtiene la orden de pago a través de la APi de pagohub, recibe como parametro la orden de woocommerce que contiene el identificador. 
+- _getOrderPayment_: obtiene la orden de pago a través de la API de pagohub, recibe como parametro la orden de woocommerce que contiene el identificador. 
 - _getPaymentStatus_: obtiene el estado del pago de la orden.
 - _isPaymentSuccess_: verifica si el pago de la orden fue exitosa.
-- _signMessage_(privada): esta función genérica firma el mensaje para agregarlo a las cabeceras requeridas por la APi de pagohub.
+- _signMessage_(privada): esta función genérica firma el mensaje para agregarlo a las cabeceras requeridas por la API de pagohub.
  
