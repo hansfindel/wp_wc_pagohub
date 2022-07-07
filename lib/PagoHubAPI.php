@@ -11,20 +11,23 @@ if (!defined('ABSPATH')) {
 
 class PahoHubAPI {
     const PAGOHUB_API_BASE_URL = "https://portal.alpayments.com/payments";
-    const API_AUTH = 'Basic dGVzdDp0ZXN0';
     const SUCCESS_CODE = 1000;
     
     private $merchantId;
+    private $authHeader;
+    private $secret;
     /**
      * @merchantId string
      * return PagoHubAPI::class
      */
-    function __construct(string $merchantId)
+    function __construct(string $merchantId, string $authHeader, string $secret)
     {
         $this->merchantId = $merchantId;
+        $this->authHeader = $authHeader;
+        $this->secret = $secret;
 
         $this->headers = array(
-          'Authorization' => self::API_AUTH,
+          'Authorization' => $this->authHeader,
           'Content-Type' => 'application/json',
           'Accept' => 'application/json',
           'merchant_id' => $merchantId,
@@ -43,7 +46,7 @@ class PahoHubAPI {
         // http://dev.wordpress.cl/?wc-api=return_pagohub&order_id=27
         $returnUrl = add_query_arg('wc-api', "return_pagohub&order_id=".$order->get_id(), home_url('/'));
         $message = $order->get_total().":".$order->get_order_number();
-        $signature = $this->signMessage($message, $this->merchantId);
+        $signature = $this->signMessage($message, $this->secret);
         $body = array(
           'amount' => $order->get_total(),
           'external_transaction_id' => $order->get_order_number(),
@@ -84,7 +87,7 @@ class PahoHubAPI {
       $currentDate = date('YmdHi');
 
       //$signature = $this->signMessage($message, $this->merchantId);
-      $signature = $this->signMessage($currentDate, $this->merchantId);
+      $signature = $this->signMessage($currentDate, $this->secret);
 
       $this->headers['ALP_SIGNATURE'] = $signature;
       $this->headers['ALP_DATE'] = $currentDate;

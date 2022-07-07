@@ -52,7 +52,8 @@ function pagohub_init_gateway_class()
 
   class WC_PagoHub extends WC_Payment_Gateway
   {
-    const TEST_MERCHANT_ID = "integration";
+    const TEST_MERCHANT_ID_DEFAULT = "integration";
+    const AUTH_HEADER_DEFAULT = 'Basic dGVzdDp0ZXN0';
 
     public function __construct()
     {
@@ -74,7 +75,9 @@ function pagohub_init_gateway_class()
       $this->description = $this->get_option('description');
       $this->enabled = $this->get_option('enabled');
       $this->test_mode = 'yes' === $this->get_option('test_mode');
-      $this->merchant_id = $this->test_mode ? static::TEST_MERCHANT_ID : $this->get_option('merchant_id');
+      $this->merchant_id = $this->test_mode ?  $this->get_option('merchant_id_test') : $this->get_option('merchant_id');
+      $this->merchant_secret = $this->get_option('merchant_secret');
+      $this->auth_header = $this->get_option('auth_header');
 
       if (is_admin()) {
         add_action('woocommerce_update_options_payment_gateways_' . $this->id, array($this, 'process_admin_options'));
@@ -115,15 +118,37 @@ function pagohub_init_gateway_class()
         ),
         'test_mode' => array(
           'title'       => __('Modo de pruebas', 'pagohub_wc_plugin'),
-          'label'       => __('Activa el modo de pruebas', 'pagohub_wc_plugin'),
           'type'        => 'checkbox',
+          'label'       => __('Activa el modo de pruebas', 'pagohub_wc_plugin'),
           'description' => __('Recuerda ingresar el Merchant ID de pruebas enviado por PagoHub', 'pagohub_wc_plugin'),
           'default'     => 'yes',
           'desc_tip'    => true,
         ),
+        'merchant_id_test' => array(
+          'title'       => __('Merchant ID de pruebas', 'pagohub_wc_plugin'),
+          'type'        => 'text',
+          'description' => __('Merchant ID utilizado para la comunicación con la API de pruebas', 'pagohub_wc_plugin'),
+          'default'     => static::TEST_MERCHANT_ID_DEFAULT,
+          'desc_tip'    => true,
+        ),
         'merchant_id' => array(
           'title'       => __('Merchant ID Oficial', 'pagohub_wc_plugin'),
-          'type'        => 'password'
+          'type'        => 'password',
+          'description' => __('Merchant ID oficial de la tienda, este ID es entregado por Pagohub', 'pagohub_wc_plugin'),
+          'desc_tip'    => true,
+        ),
+        'merchant_secret' => array(
+          'title'       => __('Merchant Secret', 'pagohub_wc_plugin'),
+          'type'        => 'text',
+          'description' => __('Texto secreto apra poder validar las solicitudes con Pagohub, este secret es entregado por Pagohub', 'pagohub_wc_plugin'),
+          'desc_tip'    => true,
+        ),
+        'auth_header' => array(
+          'title'       => __('Autenticador', 'pagohub_wc_plugin'),
+          'type'        => 'text',
+          'description' => __('Autenticación de cabecera para accerder a la comunicación con Pagohub, este código es entregado por Pagohub', 'pagohub_wc_plugin'),
+          'default'     => static::AUTH_HEADER_DEFAULT,
+          'desc_tip'    => true,
         )
       );
     }
@@ -145,7 +170,7 @@ function pagohub_init_gateway_class()
       write_log("Inicia proceso de pago");
 
       $order = new WC_Order($order_id);
-      $api = new PahoHubAPI($this->merchant_id);
+      $api = new PahoHubAPI($this->merchant_id, $this->auth_header, $this->merchant_secret);
       $response = $api->createOrderPayment($order);
       
       
@@ -178,7 +203,7 @@ function pagohub_init_gateway_class()
       $orderId = $_GET['order_id'];
       $order = wc_get_order($orderId);
       
-      $api = new PahoHubAPI($this->merchant_id);
+      $api = new PahoHubAPI($this->merchant_id, $this->auth_header, $this->merchant_secret);
       $paymentSuccess = $api->isPaymentSuccess($order);
       $returnUrl = self::processOrder($order, $paymentSuccess);
     
