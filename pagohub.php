@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) {
  * Description: Plugin de WooCoommerce para PagoHub
  * Author: Jorge Simoes 
  * Author URI: http://jorgehsy.com
- * Version: 0.0.3
+ * Version: 0.1.0
  */
 
 if (!function_exists('write_log')) {
@@ -133,13 +133,13 @@ function pagohub_init_gateway_class()
         ),
         'merchant_id' => array(
           'title'       => __('Merchant ID Oficial', 'pagohub_wc_plugin'),
-          'type'        => 'password',
+          'type'        => 'text',
           'description' => __('Merchant ID oficial de la tienda, este ID es entregado por Pagohub', 'pagohub_wc_plugin'),
           'desc_tip'    => true,
         ),
         'merchant_secret' => array(
           'title'       => __('Merchant Secret', 'pagohub_wc_plugin'),
-          'type'        => 'text',
+          'type'        => 'password',
           'description' => __('Texto secreto apra poder validar las solicitudes con Pagohub, este secret es entregado por Pagohub', 'pagohub_wc_plugin'),
           'desc_tip'    => true,
         ),
