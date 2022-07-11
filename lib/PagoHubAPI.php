@@ -24,7 +24,7 @@ class PahoHubAPI {
     {
         $this->merchantId = $merchantId;
         $this->authHeader = $authHeader;
-        $this->secret = $secret;
+        $this->secret = $secret ?? $merchantId;
 
         $this->headers = array(
           'Authorization' => $this->authHeader,
