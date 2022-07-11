@@ -127,7 +127,7 @@ class PahoHubAPI {
         $orderPayment = $this->getOrderPayment($order);
 
         if ($orderPayment['status'] === 200){
-          write_log("respiesta PAGOHUB", $orderPayment);
+          write_log("respuesta PAGOHUB", $orderPayment);
           $result = [
             // TODO destructurar arreglo para manejar indices por defecto
             'response_code' => $orderPayment['data']['payment']['result']['status']['response_code'],
