@@ -45,6 +45,7 @@ class PahoHubAPI {
       try {
         // http://dev.wordpress.cl/?wc-api=return_pagohub&order_id=27
         $returnUrl = add_query_arg('wc-api', "return_pagohub&order_id=".$order->get_id(), home_url('/'));
+        $order->update_meta_data('check_payment_url', $returnUrl);
         $message = $order->get_total().":".$order->get_order_number();
         $signature = $this->signMessage($message, $this->secret);
         $body = array(
@@ -126,7 +127,7 @@ class PahoHubAPI {
         $orderPayment = $this->getOrderPayment($order);
 
         if ($orderPayment['status'] === 200){
-
+          write_log("respiesta PAGOHUB", $orderPayment);
           $result = [
             // TODO destructurar arreglo para manejar indices por defecto
             'response_code' => $orderPayment['data']['payment']['result']['status']['response_code'],
@@ -169,6 +170,10 @@ class PahoHubAPI {
         ? write_log("Pago EXITOSO: ".$logMessage)
         : write_log("Pago FALLIDO: ".$logMessage);
 
+      if ($result){
+        $order->payment_complete();
+      }
+
       return $result;
     }
 
@@ -178,7 +183,8 @@ class PahoHubAPI {
      * return string
      */
     private function signMessage(string $message, string $secret) : string{
-      write_log("Mensahe: ".$message);
+      write_log("mensaje a firmar: ".$message);
+      write_log("secreto: ".$secret);
       $hash = hash_hmac('sha256', $message, $secret, true);
       $signature = base64_encode($hash);
       write_log("Signature: ".$signature);

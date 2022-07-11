@@ -181,13 +181,14 @@ function pagohub_init_gateway_class()
           $paymentGatewayUrl = $response['data']['url'];
           $pagoHubIdentifier = $response['data']['identifier'];
           $order->update_meta_data('pago_hub_identifier', $pagoHubIdentifier);
-          $order->update_status('on-hold', __('Pago en proceso', 'pagohub_wc_plugin'));
+          //$order->update_status('on-hold', __('Pago en proceso', 'pagohub_wc_plugin'));
 
           return array(
             'result' => 'success',
             'redirect' => $paymentGatewayUrl
           );
         } else {
+          write_log("Error al crear el link de pagohub:", $response);
           wc_add_notice('Ocurrió un error, por favor intente de nuevo más tarde.', 'error');
           return;
         }
