@@ -46,16 +46,17 @@ class PahoHubAPI {
         // http://dev.wordpress.cl/?wc-api=return_pagohub&order_id=27
         $returnUrl = add_query_arg('wc-api', "return_pagohub&order_id=".$order->get_id(), home_url('/'));
         $order->update_meta_data('check_payment_url', $returnUrl);
+        $order->save_meta_data();
         $message = $order->get_total().":".$order->get_order_number();
         $signature = $this->signMessage($message, $this->secret);
         $body = array(
           'amount' => $order->get_total(),
           'external_transaction_id' => $order->get_order_number(),
-          'external_account_id' => $order->get_user_id(),
+          'external_account_id' => $order->get_billing_email(),
           'description' => 'Orden de prueba',
           'return_url' => $returnUrl,
         );
-  
+        
         $this->headers['ALP_SIGNATURE'] = $signature;
   
         $args = [
