@@ -57,7 +57,8 @@ function custom_redirects() {
     );
     $orders = wc_get_orders($args);
     foreach ($orders as $key => $order) {
-      if ($order->get_status() === "pending"){
+      $identifier = $order->get_meta('pago_hub_identifier');
+      if (!$order->get_date_paid() && $identifier) {
         $data = [
           "meta" => $order->get_id()
         ];
