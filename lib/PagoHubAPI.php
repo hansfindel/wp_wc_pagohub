@@ -51,11 +51,11 @@ class PahoHubAPI {
         $body = array(
           'amount' => $order->get_total(),
           'external_transaction_id' => $order->get_order_number(),
-          'external_account_id' => $order->get_user_id(),
+          'external_account_id' => $order->get_billing_email(),
           'description' => 'Orden de prueba',
           'return_url' => $returnUrl,
         );
-  
+        
         $this->headers['ALP_SIGNATURE'] = $signature;
   
         $args = [

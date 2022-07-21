@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) {
 if (!function_exists('write_log')) {
   function write_log($log)
   {
-    if (true === WP_DEBUG) {
+    if (WP_DEBUG === true) {
       if (is_array($log) || is_object($log)) {
         error_log("PagoHub - ". print_r($log, true));
       } else {
@@ -45,6 +45,28 @@ function pagohub_add_gateway_class($gateways)
 }
 
 require_once plugin_dir_path( __FILE__ ) . "lib/PagoHubAPI.php";
+
+add_action( 'template_redirect', 'custom_redirects' );
+function custom_redirects() {
+  $userId = get_current_user_id();
+  if ( (is_account_page() || is_checkout()) 
+    && $userId ) {
+    $args = array(
+      'customer_id' => get_current_user_id(),
+      'limit' => -1,
+    );
+    $orders = wc_get_orders($args);
+    foreach ($orders as $key => $order) {
+      if ($order->get_status() === "pending"){
+        $data = [
+          "meta" => $order->get_id()
+        ];
+        $wcpagohub = new WC_PagoHub();
+        $wcpagohub->verifyPaymentProcess($order);
+      }
+    }
+  }
+}
 
 add_action('plugins_loaded', 'pagohub_init_gateway_class');
 function pagohub_init_gateway_class()
@@ -180,8 +202,10 @@ function pagohub_init_gateway_class()
 
           $paymentGatewayUrl = $response['data']['url'];
           $pagoHubIdentifier = $response['data']['identifier'];
-          $order->update_meta_data('pago_hub_identifier', $pagoHubIdentifier);
-          //$order->update_status('on-hold', __('Pago en proceso', 'pagohub_wc_plugin'));
+          write_log("Identificador: ", $pagoHubIdentifier);
+          $order->add_meta_data('pago_hub_identifier', $pagoHubIdentifier);
+          $order->save_meta_data();
+          $order->update_status('pending', __('Pago en proceso', 'pagohub_wc_plugin'));
 
           return array(
             'result' => 'success',
@@ -203,12 +227,18 @@ function pagohub_init_gateway_class()
       write_log("Retorno de pago");
       $orderId = $_GET['order_id'];
       $order = wc_get_order($orderId);
-      
+
       $api = new PahoHubAPI($this->merchant_id, $this->auth_header, $this->merchant_secret);
       $paymentSuccess = $api->isPaymentSuccess($order);
       $returnUrl = self::processOrder($order, $paymentSuccess);
     
       wp_redirect($returnUrl);
+    }
+
+    public function verifyPaymentProcess(WC_Order $order){
+      $api = new PahoHubAPI($this->merchant_id, $this->auth_header, $this->merchant_secret);
+      $paymentSuccess = $api->isPaymentSuccess($order);
+      $returnUrl = self::processOrder($order, $paymentSuccess);
     }
 
     public function processOrder(WC_Order $order, bool $paymentSuccess = false) : string{
